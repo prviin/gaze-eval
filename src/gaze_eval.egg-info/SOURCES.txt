@@ -1,0 +1,14 @@
+README.md
+pyproject.toml
+src/gaze_eval/__init__.py
+src/gaze_eval.egg-info/PKG-INFO
+src/gaze_eval.egg-info/SOURCES.txt
+src/gaze_eval.egg-info/dependency_links.txt
+src/gaze_eval.egg-info/requires.txt
+src/gaze_eval.egg-info/top_level.txt
+src/gaze_eval/scanpath/__init__.py
+src/gaze_eval/scanpath/aggregate.py
+src/gaze_eval/scanpath/evaluate.py
+src/gaze_eval/scanpath/metrics.py
+src/gaze_eval/scanpath/registry.py
+tests/test_dummy_scanpath_metrics.py

@@ -1,0 +1,5 @@
+image_id,prediction_id,model,sampler,fixation_index,x,y,duration
+img001,pred_bad_001,dummy_bad,dummy_sampler,0,0.20,0.80,260
+img001,pred_bad_001,dummy_bad,dummy_sampler,1,0.30,0.75,240
+img001,pred_bad_001,dummy_bad,dummy_sampler,2,0.40,0.70,180
+img001,pred_bad_001,dummy_bad,dummy_sampler,3,0.60,0.40,100

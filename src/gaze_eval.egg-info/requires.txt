@@ -1,0 +1,9 @@
+numpy
+pandas
+
+[dev]
+pytest
+ruff
+
+[scanpath]
+multimatch-gaze

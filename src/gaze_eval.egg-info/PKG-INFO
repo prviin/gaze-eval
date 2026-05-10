@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: gaze-eval
+Version: 0.1.0
+Summary: Evaluation tools for gaze prediction models, including scanpath and saliency-map metrics.
+Author: Parvin Emami
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: pandas
+Provides-Extra: scanpath
+Requires-Dist: multimatch-gaze; extra == "scanpath"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
