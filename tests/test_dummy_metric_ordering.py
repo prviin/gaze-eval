@@ -33,7 +33,7 @@ HIGHER_IS_BETTER_METRICS = [
 ]
 
 # MultiMatch needs the optional dependency `multimatch-gaze`.
-# Keep it out of this core test unless you install that dependency in CI.
+
 OPTIONAL_MULTIMATCH_METRICS = [
     "multimatch_shape",
     "multimatch_direction",
