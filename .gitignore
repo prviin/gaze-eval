@@ -12,3 +12,5 @@ results/
 
 data/*
 !data/README.md
+./data/*
+

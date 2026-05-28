@@ -1,13 +1,41 @@
-# gaze-eval
+<p align="center">
+  <img src="docs/assets/gaze-eval-logo.png" alt="gaze-eval logo" width="220"/>
+</p>
+
+<h1 align="center">gaze-eval</h1>
+
+<p align="center">
+  Evaluation tools for gaze prediction models, scanpaths, and saliency maps.
+</p>
+
+---
+
+## Overview
 
 `gaze-eval` is a Python package for evaluating gaze prediction models.
 
 The package is designed to support two main evaluation tasks:
 
-- scanpath prediction evaluation
-- saliency-map prediction evaluation
+* scanpath prediction evaluation
+* saliency-map prediction evaluation
 
-The current version focuses on scanpath metrics and dummy validation data. Saliency-map metrics and dataset loaders will be added later.
+The current version focuses on **scanpath evaluation**. It supports an NDJSON-based scanpath format, where each line represents one complete scanpath for one trial.
+
+The recommended workflow is:
+
+```text
+NDJSON file
+   ↓
+read_scanpath_ndjson()
+   ↓
+list[ScanpathRecord]
+   ↓
+evaluate_scanpath_records()
+   ↓
+results DataFrame
+```
+
+Saliency-map metrics and dataset loaders will be added later.
 
 ---
 
@@ -15,19 +43,22 @@ The current version focuses on scanpath metrics and dummy validation data. Salie
 
 Implemented:
 
-- scanpath metric functions
-- scanpath metric registry
-- dummy scanpath data
-- basic validation tests
-- scanpath metric documentation
+* scanpath metric functions
+* scanpath metric registry
+* NDJSON scanpath format
+* `ScanpathRecord` representation
+* record-based scanpath evaluation
+* dummy scanpath validation data
+* basic validation tests
+* scanpath metric documentation
 
 Planned:
 
-- saliency-map metrics
-- saliency-map evaluation pipeline
-- dataset loaders
-- human group-vs-human group evaluation
-
+* saliency-map metrics
+* saliency-map evaluation pipeline
+* dataset loaders
+* human group-vs-human group evaluation
+* benchmark scripts for common gaze datasets
 
 ---
 
@@ -41,7 +72,7 @@ cd gaze-eval
 pip install -e ".[dev]"
 ```
 
-If editable installation is not available in your environment, you can still run the package using:
+If editable installation is not available in your environment, run:
 
 ```bash
 PYTHONPATH=src python -m pytest
@@ -56,37 +87,109 @@ gaze-eval/
 ├── src/
 │   └── gaze_eval/
 │       └── scanpath/
+│           ├── records.py
+│           ├── io.py
+│           ├── evaluate_records.py
+│           ├── evaluate.py
 │           ├── metrics.py
 │           ├── registry.py
-│           ├── evaluate.py
 │           └── aggregate.py
 ├── tests/
+│   ├── test_scanpath_records.py
+│   ├── scripts/
+│   │   └── evaluate_ndjson_debug.py
 │   └── data/
 │       └── debug/
+│           ├── human_scanpaths.ndjson
+│           ├── pred_scanpaths.ndjson
 │           ├── human_scanpaths.csv
 │           ├── pred_same.csv
 │           ├── pred_good.csv
 │           └── pred_bad.csv
 ├── docs/
-│   └── scanpath_metrics.md
-└── examples/
+│   ├── scanpath_metrics.md
+│   └── assets/
+│       └── gaze-eval-logo.png
+└── README.md
 ```
 
 ---
 
 ## Scanpath Data Format
 
-Human scanpaths should use the following columns:
+The recommended scanpath format is **NDJSON**.
+
+NDJSON means that each line is one independent JSON object.
+
+In `gaze-eval`:
 
 ```text
-image_id, subject_id, fixation_index, x, y, duration
+one line = one trial = one complete scanpath
 ```
 
-Predicted scanpaths should use the following columns:
+This format is easier to share, validate, and extend with metadata than a flat fixation-level CSV.
+
+---
+
+## Human Scanpath Example
+
+```json
+{"schema_version":"gaze-eval-scanpath-v1","source":"human","dataset":"debug","image_id":"img_001","trial_id":"human_s01_img001","subject_id":"s01","coordinate_system":{"type":"normalized","x_range":[0,1],"y_range":[0,1],"origin":"top_left"},"time_unit":"ms","duration_unit":"ms","scanpath":[{"fixation_index":0,"timestamp":0.0,"x":0.1,"y":0.2,"duration":100.0},{"fixation_index":1,"timestamp":120.0,"x":0.3,"y":0.4,"duration":150.0},{"fixation_index":2,"timestamp":300.0,"x":0.5,"y":0.6,"duration":200.0}]}
+```
+
+---
+
+## Predicted Scanpath Example
+
+```json
+{"schema_version":"gaze-eval-scanpath-v1","source":"prediction","dataset":"debug","image_id":"img_001","trial_id":"pred_dummy_img001","prediction_id":"pred_001","model":"dummy_model","sampler":"dummy_sampler","coordinate_system":{"type":"normalized","x_range":[0,1],"y_range":[0,1],"origin":"top_left"},"time_unit":"ms","duration_unit":"ms","scanpath":[{"fixation_index":0,"timestamp":0.0,"x":0.1,"y":0.2,"duration":100.0},{"fixation_index":1,"timestamp":120.0,"x":0.6,"y":0.7,"duration":250.0},{"fixation_index":2,"timestamp":300.0,"x":0.5,"y":0.6,"duration":200.0}]}
+```
+
+---
+
+## Required Fields
+
+Each NDJSON row should include:
 
 ```text
-image_id, prediction_id, model, sampler, fixation_index, x, y, duration
+schema_version
+source
+dataset
+image_id
+trial_id
+coordinate_system
+time_unit
+duration_unit
+scanpath
 ```
+
+For human scanpaths, also include:
+
+```text
+subject_id
+```
+
+For predicted scanpaths, also include:
+
+```text
+prediction_id
+model
+sampler
+```
+
+Each fixation inside `scanpath` should include:
+
+```text
+fixation_index
+timestamp
+x
+y
+duration
+```
+
+---
+
+## Coordinate and Time Conventions
 
 Coordinates should be normalized:
 
@@ -95,7 +198,11 @@ x in [0, 1]
 y in [0, 1]
 ```
 
+The coordinate origin is assumed to be the top-left corner unless otherwise specified in `coordinate_system`.
+
 Durations should be reported in milliseconds.
+
+Timestamps should also be reported in milliseconds and should represent fixation onset time relative to trial or stimulus onset.
 
 If duration is unavailable, use:
 
@@ -108,39 +215,64 @@ duration = -1
 ## Example Usage
 
 ```python
-import pandas as pd
+from gaze_eval.scanpath.evaluate_records import evaluate_scanpath_records
+from gaze_eval.scanpath.io import read_scanpath_ndjson
 
-from gaze_eval.scanpath.metrics import mean_fixation_error, dtw_distance
+human_records = read_scanpath_ndjson("tests/data/debug/human_scanpaths.ndjson")
+pred_records = read_scanpath_ndjson("tests/data/debug/pred_scanpaths.ndjson")
 
-human = pd.read_csv("tests/data/debug/human_scanpaths.csv")
-pred = pd.read_csv("tests/data/debug/pred_good.csv")
+results = evaluate_scanpath_records(
+    human_scanpaths=human_records,
+    predicted_scanpaths=pred_records,
+    metric_names=[
+        "mean_fixation_error",
+        "final_fixation_error",
+        "mean_duration_error",
+        "duration_correlation",
+        "dtw",
+    ],
+)
 
-human_s01 = human[human["subject_id"] == "s01"]
+print(results)
+results.to_csv("tests/data/debug/ndjson_eval_results.csv", index=False)
+```
 
-mfe = mean_fixation_error(pred, human_s01)
-dtw = dtw_distance(pred, human_s01)
+---
 
-print("Mean fixation error:", mfe)
-print("DTW distance:", dtw)
+## Example Output
+
+```text
+dataset image_id          trial_id prediction_id subject_id       model       sampler               metric  category direction     value
+  debug  img_001 pred_dummy_img001      pred_001        s01 dummy_model dummy_sampler  mean_fixation_error pointwise     lower  0.141421
+  debug  img_001 pred_dummy_img001      pred_001        s01 dummy_model dummy_sampler final_fixation_error pointwise     lower  0.000000
+  debug  img_001 pred_dummy_img001      pred_001        s01 dummy_model dummy_sampler  mean_duration_error  temporal     lower 33.333333
+  debug  img_001 pred_dummy_img001      pred_001        s01 dummy_model dummy_sampler duration_correlation  temporal    higher  0.654654
+  debug  img_001 pred_dummy_img001      pred_001        s01 dummy_model dummy_sampler                  dtw alignment     lower  0.070711
+```
+
+The output is a pandas DataFrame with one row per:
+
+```text
+prediction × human subject × metric
 ```
 
 ---
 
 ## Implemented Scanpath Metric Groups
 
-The current scanpath module includes metrics from the following groups:
+The scanpath module includes metrics from the following groups:
 
-- point-wise geometric metrics
-- temporal metrics
-- alignment metrics
-- MultiMatch metrics
-- symbolic / grid-AOI metrics
-- spatial set-based metrics
-- recurrence-based metrics
-- temporal-embedding metrics
-- descriptive scanpath statistics
+* point-wise geometric metrics
+* temporal metrics
+* alignment metrics
+* MultiMatch metrics
+* symbolic / grid-AOI metrics
+* spatial set-based metrics
+* recurrence-based metrics
+* temporal-embedding metrics
+* descriptive scanpath statistics
 
-See the full documentation:
+See the full metric documentation:
 
 ```text
 docs/scanpath_metrics.md
@@ -148,9 +280,123 @@ docs/scanpath_metrics.md
 
 ---
 
-## Dummy Validation Data
+## Available Metrics
 
-The repository includes small dummy scanpath files for testing:
+The currently registered scanpath metrics include:
+
+```text
+mean_fixation_error
+final_fixation_error
+mean_saccade_amplitude_error
+mean_saccade_angle_error
+mean_duration_error
+duration_correlation
+dtw
+frechet
+hausdorff
+multimatch_shape
+multimatch_direction
+multimatch_length
+multimatch_position
+multimatch_duration
+scanmatch
+levenshtein
+needleman_wunsch
+aoi_transition_similarity
+eyenalysis
+mannan_distance
+recurrence
+determinism
+laminarity
+corm
+tde
+scaled_tde
+sequence_score
+number_of_fixations
+aoi_transition_count
+```
+
+To print all registered metrics:
+
+```bash
+python - <<'PY'
+from gaze_eval.scanpath.metrics import SCANPATH_METRICS
+
+for name in SCANPATH_METRICS:
+    print(name)
+PY
+```
+
+---
+
+## Metric Direction
+
+The `direction` column explains whether lower or higher values are better.
+
+Examples where lower is better:
+
+```text
+mean_fixation_error
+final_fixation_error
+mean_duration_error
+dtw
+frechet
+hausdorff
+```
+
+Examples where higher is better:
+
+```text
+duration_correlation
+multimatch_shape
+multimatch_direction
+multimatch_length
+multimatch_position
+multimatch_duration
+```
+
+---
+
+## Debug Evaluation Data
+
+The repository includes small debug files for testing the NDJSON pipeline:
+
+```text
+tests/data/debug/human_scanpaths.ndjson
+tests/data/debug/pred_scanpaths.ndjson
+```
+
+Run the debug evaluation with:
+
+```bash
+python tests/scripts/evaluate_ndjson_debug.py
+```
+
+This writes:
+
+```text
+tests/data/debug/ndjson_eval_results.csv
+```
+
+---
+
+## Legacy CSV Validation Data
+
+Earlier versions of the package used a flat CSV/DataFrame format where each row represented one fixation.
+
+Human scanpaths used:
+
+```text
+image_id, subject_id, fixation_index, x, y, duration
+```
+
+Predicted scanpaths used:
+
+```text
+image_id, prediction_id, model, sampler, fixation_index, x, y, duration
+```
+
+The repository still includes legacy dummy CSV files:
 
 ```text
 tests/data/debug/human_scanpaths.csv
@@ -183,7 +429,7 @@ same > good > bad
 
 ## Running Tests
 
-Run:
+Run all tests:
 
 ```bash
 python -m pytest
@@ -193,6 +439,12 @@ If the package is not installed in the current environment, run:
 
 ```bash
 PYTHONPATH=src python -m pytest
+```
+
+Run only the NDJSON scanpath tests:
+
+```bash
+python -m pytest tests/test_scanpath_records.py
 ```
 
 ---
@@ -223,26 +475,26 @@ ruff check .
 
 Short-term:
 
-- add `evaluate_scanpaths`
-- add aggregation utilities
-- add example script for dummy scanpath evaluation
-- improve tests for all metric families
+* improve tests for all metric families
+* add examples for NDJSON scanpath evaluation
+* add conversion utilities from legacy CSV to NDJSON
+* improve human group-vs-human group evaluation
 
 Medium-term:
 
-- add saliency-map metrics
-- add saliency-map evaluation pipeline
-- add fixation-map utilities
-- add dataset loaders for common benchmarks
+* add saliency-map metrics
+* add saliency-map evaluation pipeline
+* add fixation-map utilities
+* add dataset loaders for common benchmarks
 
 Long-term:
 
-- support human group-vs-human group evaluation
-- support model-vs-human evaluation
-- provide benchmark scripts for scanpath and saliency prediction models
+* support model-vs-human benchmark scripts
+* support human group-vs-human reliability analysis
+* provide reproducible benchmark scripts for scanpath and saliency prediction models
 
 ---
 
 ## License
 
-
+To be added.

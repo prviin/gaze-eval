@@ -1,0 +1,6 @@
+dataset,image_id,trial_id,prediction_id,subject_id,model,sampler,metric,category,direction,value
+debug,img_001,pred_dummy_img001,pred_001,s01,dummy_model,dummy_sampler,mean_fixation_error,pointwise,lower,0.14142135623730948
+debug,img_001,pred_dummy_img001,pred_001,s01,dummy_model,dummy_sampler,final_fixation_error,pointwise,lower,0.0
+debug,img_001,pred_dummy_img001,pred_001,s01,dummy_model,dummy_sampler,mean_duration_error,temporal,lower,33.333333333333336
+debug,img_001,pred_dummy_img001,pred_001,s01,dummy_model,dummy_sampler,duration_correlation,temporal,higher,0.6546536707079771
+debug,img_001,pred_dummy_img001,pred_001,s01,dummy_model,dummy_sampler,dtw,alignment,lower,0.07071067811865474

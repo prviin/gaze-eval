@@ -43,12 +43,23 @@ def human_scanpaths_to_predictions(
         "model",
         "sampler",
         "fixation_index",
+    ]
+
+    optional_columns = [
+        "timestamp",
         "x",
         "y",
         "duration",
     ]
 
-    if "dataset" in predictions.columns:
-        columns = ["dataset"] + columns
+    columns += [column for column in optional_columns if column in predictions.columns]
+
+    prefix_columns = [
+        column
+        for column in ["dataset", "trial_id", "stimulus_id", "task_id", "condition"]
+        if column in predictions.columns
+    ]
+
+    columns = prefix_columns + columns
 
     return predictions[columns]
