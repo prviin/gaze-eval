@@ -30,6 +30,8 @@ def evaluate_scanpath_records(
     human_scanpaths: list[ScanpathRecord],
     predicted_scanpaths: list[ScanpathRecord],
     metric_names: Iterable[str] | None = None,
+    *,
+    exclude_self_comparisons: bool = False,
 ) -> pd.DataFrame:
     if metric_names is None:
         metric_names = list(SCANPATH_METRICS)
@@ -74,6 +76,13 @@ def evaluate_scanpath_records(
         pred_df = _record_to_metric_dataframe(pred_record)
 
         for human_record in human_records:
+            if exclude_self_comparisons:
+                original_subject_id = pred_record.metadata.get("original_subject_id")
+                if (
+                    original_subject_id is not None
+                    and original_subject_id == human_record.subject_id
+                ):
+                    continue
             gt_df = _record_to_metric_dataframe(human_record)
 
             for metric_name in metric_names:

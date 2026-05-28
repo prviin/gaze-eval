@@ -14,7 +14,7 @@
 
 `gaze-eval` is a Python package for evaluating gaze prediction models.
 
-The package is designed to support two main evaluation tasks:
+The package is designed to support two main evaluation tasks over time:
 
 * scanpath prediction evaluation
 * saliency-map prediction evaluation
@@ -427,6 +427,40 @@ same > good > bad
 
 ---
 
+## Converting Legacy CSV Files to NDJSON
+
+Earlier versions of `gaze-eval` used flat CSV files where each row represented one fixation.
+
+The recommended format is now NDJSON, where each line represents one complete scanpath for one trial.
+
+You can convert legacy human CSV files with:
+
+```python
+from gaze_eval.scanpath.convert import convert_human_csv_to_ndjson
+
+convert_human_csv_to_ndjson(
+    "tests/data/debug/human_scanpaths.csv",
+    "tests/data/debug/human_scanpaths_from_csv.ndjson",
+    dataset="debug",
+)
+```
+
+You can convert legacy prediction CSV files with:
+
+```python
+from gaze_eval.scanpath.convert import convert_prediction_csv_to_ndjson
+
+convert_prediction_csv_to_ndjson(
+    "tests/data/debug/pred_good.csv",
+    "tests/data/debug/pred_good_from_csv.ndjson",
+    dataset="debug",
+)
+```
+
+If a `timestamp` column is present in the CSV file, it is preserved in the NDJSON output.
+
+---
+
 ## Running Tests
 
 Run all tests:
@@ -475,10 +509,9 @@ ruff check .
 
 Short-term:
 
-* improve tests for all metric families
-* add examples for NDJSON scanpath evaluation
-* add conversion utilities from legacy CSV to NDJSON
-* improve human group-vs-human group evaluation
+* add expected-value tests for each metric family
+* add more realistic multi-image and multi-subject benchmark examples
+* add command-line conversion scripts for CSV-to-NDJSON
 
 Medium-term:
 
