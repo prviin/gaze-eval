@@ -21,7 +21,15 @@ The package is designed to support two main evaluation tasks over time:
 
 The current version focuses on **scanpath evaluation**. It supports an NDJSON-based scanpath format, where each line represents one complete scanpath for one trial.
 
-The recommended workflow is:
+The package currently includes:
+
+* scanpath metrics
+* NDJSON scanpath evaluation
+* a UEyes dataset loader
+* reproducible human-human scanpath pair sampling
+* statistical summaries, effect sizes, bootstrap confidence intervals, and human-baseline references
+
+The recommended scanpath evaluation workflow is:
 
 ```text
 NDJSON file
@@ -35,7 +43,7 @@ evaluate_scanpath_records()
 results DataFrame
 ```
 
-Saliency-map metrics and dataset loaders will be added later.
+Saliency-map metrics will be added later.
 
 ---
 
@@ -48,6 +56,10 @@ Implemented:
 * NDJSON scanpath format
 * `ScanpathRecord` representation
 * record-based scanpath evaluation
+* UEyes dataset loader
+* reproducible human-human scanpath pair sampling
+* UEyes human similarity benchmark
+* statistical summaries, bootstrap confidence intervals, effect sizes, and human-baseline references
 * dummy scanpath validation data
 * basic validation tests
 * scanpath metric documentation
@@ -56,9 +68,9 @@ Planned:
 
 * saliency-map metrics
 * saliency-map evaluation pipeline
-* dataset loaders
-* human group-vs-human group evaluation
-* benchmark scripts for common gaze datasets
+* fixation-map utilities
+* dataset loaders for additional gaze benchmarks
+* model-vs-human benchmark scripts
 
 ---
 
@@ -86,14 +98,25 @@ PYTHONPATH=src python -m pytest
 gaze-eval/
 ├── src/
 │   └── gaze_eval/
+│       ├── datasets/
+│       │   ├── __init__.py
+│       │   └── ueyes.py
 │       └── scanpath/
 │           ├── records.py
 │           ├── io.py
+│           ├── convert.py
 │           ├── evaluate_records.py
 │           ├── evaluate.py
 │           ├── metrics.py
 │           ├── registry.py
-│           └── aggregate.py
+│           ├── aggregate.py
+│           ├── pair_sampling.py
+│           ├── human_similarity.py
+│           └── statistics.py
+├── examples/
+│   ├── prepare_ueyes.py
+│   ├── sample_ueyes_pairs.py
+│   └── evaluate_ueyes_pair_sample.py
 ├── tests/
 │   ├── test_scanpath_records.py
 │   ├── scripts/
@@ -212,7 +235,7 @@ duration = -1
 
 ---
 
-## Example Usage
+## Basic Scanpath Evaluation
 
 ```python
 from gaze_eval.scanpath.evaluate_records import evaluate_scanpath_records
@@ -258,6 +281,150 @@ prediction × human subject × metric
 
 ---
 
+## UEyes Dataset Support
+
+`gaze-eval` includes a dataset loader for UEyes and a reproducible human-human scanpath similarity benchmark.
+
+The UEyes workflow is:
+
+```text
+raw UEyes dataset
+   ↓
+prepare_ueyes.py
+   ↓
+human_scanpaths.ndjson
+   ↓
+sample_ueyes_pairs.py
+   ↓
+fixed pair sample CSV
+   ↓
+evaluate_ueyes_pair_sample.py
+   ↓
+metric results, summaries, sanity checks, effect sizes, and human baseline references
+```
+
+### 1. Prepare UEyes
+
+After downloading and extracting UEyes, place the dataset under:
+
+```text
+data/Ueyes/UEyes_dataset/
+```
+
+Then run:
+
+```bash
+python examples/prepare_ueyes.py
+```
+
+This creates:
+
+```text
+data/processed/ueyes/human_scanpaths.ndjson
+```
+
+Each row in this NDJSON file represents one subject-image trial:
+
+```text
+one subject × one image = one scanpath record
+```
+
+The UEyes loader preserves metadata such as:
+
+```text
+image_id
+subject_id
+category
+split
+timestamp
+duration
+```
+
+The loader uses valid fixations and converts UEyes timing values to milliseconds.
+
+### 2. Sample Reproducible Human-Human Pairs
+
+Run:
+
+```bash
+python examples/sample_ueyes_pairs.py
+```
+
+This creates:
+
+```text
+data/processed/ueyes/pairs/ueyes_pairs_seed42.csv
+```
+
+The pair sample contains:
+
+```text
+10,000 same-image pairs
+10,000 same-category pairs
+10,000 different-category pairs
+```
+
+Pairs are sampled with a fixed random seed and balanced across UEyes categories.
+
+The three pair types are:
+
+```text
+same_image:
+    same image, different subjects
+
+same_category:
+    different images from the same UI category
+
+different_category:
+    different images from different UI categories
+```
+
+### 3. Evaluate the Pair Sample
+
+Run:
+
+```bash
+python examples/evaluate_ueyes_pair_sample.py
+```
+
+This creates:
+
+```text
+data/processed/ueyes/results/ueyes_pair_metric_results_seed42.csv
+data/processed/ueyes/results/ueyes_pair_metric_summary_seed42.csv
+data/processed/ueyes/results/ueyes_pair_metric_sanity_seed42.csv
+data/processed/ueyes/results/ueyes_pair_metric_differences_seed42.csv
+data/processed/ueyes/results/ueyes_human_baseline_quality_seed42.csv
+```
+
+The benchmark checks whether scanpath metrics recover the expected human-human similarity structure:
+
+```text
+same image > same category > different category
+```
+
+For lower-is-better metrics, this corresponds to:
+
+```text
+same image < same category < different category
+```
+
+The statistical output includes:
+
+```text
+mean, median, standard deviation, IQR
+bootstrap confidence intervals
+oriented Cliff's delta
+P(group A better than group B)
+human-baseline quality references
+```
+
+The full UEyes benchmark evaluates the metrics available through the scanpath metric registry. Metrics with undefined values for some scanpath pairs are retained in the raw results, while summary statistics are computed after dropping NaN values per metric.
+
+Descriptive metrics are reported in the summary file but excluded from expected-order sanity checks and human-baseline quality scores because they do not have a lower-is-better or higher-is-better interpretation.
+
+---
+
 ## Implemented Scanpath Metric Groups
 
 The scanpath module includes metrics from the following groups:
@@ -294,6 +461,8 @@ duration_correlation
 dtw
 frechet
 hausdorff
+eyenalysis
+mannan_distance
 multimatch_shape
 multimatch_direction
 multimatch_length
@@ -503,22 +672,34 @@ Check code style:
 ruff check .
 ```
 
+Large local datasets and generated benchmark outputs should not be committed. Keep the following paths ignored:
+
+```text
+data/Ueyes/
+data/processed/
+__MACOSX/
+.DS_Store
+._*
+.~lock.*
+```
+
 ---
 
 ## Roadmap
 
 Short-term:
 
-* add expected-value tests for each metric family
-* add more realistic multi-image and multi-subject benchmark examples
-* add command-line conversion scripts for CSV-to-NDJSON
+* add tests for UEyes loading, pair sampling, and statistical analysis
+* add paper-table generation utilities
+* add visualizations for UEyes metric distributions
+* add command-line entry points for dataset preparation and evaluation
 
 Medium-term:
 
 * add saliency-map metrics
 * add saliency-map evaluation pipeline
 * add fixation-map utilities
-* add dataset loaders for common benchmarks
+* add dataset loaders for additional benchmarks
 
 Long-term:
 

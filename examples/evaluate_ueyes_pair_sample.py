@@ -34,6 +34,8 @@ def main() -> None:
         "dtw",
         "frechet",
         "hausdorff",
+        "eyenalysis",
+        "mannan_distance",
     ]
 
     SEQUENCE_METRICS = [
