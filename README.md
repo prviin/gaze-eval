@@ -14,7 +14,7 @@
 
 `gaze-eval` is a Python package for evaluating gaze prediction models.
 
-The package is designed to support two main evaluation tasks over time:
+The package is designed to support two main evaluation tasks:
 
 * scanpath prediction evaluation
 * saliency-map prediction evaluation
@@ -25,9 +25,11 @@ The package currently includes:
 
 * scanpath metrics
 * NDJSON scanpath evaluation
-* a UEyes dataset loader
+* UEyes and MassVis dataset loaders
 * reproducible human-human scanpath pair sampling
+* UEyes and MassVis human similarity benchmarks
 * statistical summaries, effect sizes, bootstrap confidence intervals, and human-baseline references
+* paper-table and visualization scripts for benchmark analysis
 
 The recommended scanpath evaluation workflow is:
 
@@ -57,9 +59,13 @@ Implemented:
 * `ScanpathRecord` representation
 * record-based scanpath evaluation
 * UEyes dataset loader
+* MassVis dataset loader
 * reproducible human-human scanpath pair sampling
 * UEyes human similarity benchmark
+* MassVis human similarity benchmark
 * statistical summaries, bootstrap confidence intervals, effect sizes, and human-baseline references
+* paper-table generation utilities
+* metric-distribution visualization scripts
 * dummy scanpath validation data
 * basic validation tests
 * scanpath metric documentation
@@ -100,7 +106,8 @@ gaze-eval/
 │   └── gaze_eval/
 │       ├── datasets/
 │       │   ├── __init__.py
-│       │   └── ueyes.py
+│       │   ├── ueyes.py
+│       │   └── massvis.py
 │       └── scanpath/
 │           ├── records.py
 │           ├── io.py
@@ -116,9 +123,19 @@ gaze-eval/
 ├── examples/
 │   ├── prepare_ueyes.py
 │   ├── sample_ueyes_pairs.py
-│   └── evaluate_ueyes_pair_sample.py
+│   ├── evaluate_ueyes_pair_sample.py
+│   ├── make_ueyes_paper_tables.py
+│   ├── plot_ueyes_metric_distributions.py
+│   ├── prepare_massvis.py
+│   ├── sample_massvis_pairs.py
+│   ├── evaluate_massvis_pair_sample.py
+│   ├── make_massvis_paper_tables.py
+│   └── plot_massvis_metric_distributions.py
 ├── tests/
 │   ├── test_scanpath_records.py
+│   ├── test_ueyes_loader.py
+│   ├── test_pair_sampling.py
+│   ├── test_statistics.py
 │   ├── scripts/
 │   │   └── evaluate_ndjson_debug.py
 │   └── data/
@@ -262,25 +279,6 @@ results.to_csv("tests/data/debug/ndjson_eval_results.csv", index=False)
 
 ---
 
-## Example Output
-
-```text
-dataset image_id          trial_id prediction_id subject_id       model       sampler               metric  category direction     value
-  debug  img_001 pred_dummy_img001      pred_001        s01 dummy_model dummy_sampler  mean_fixation_error pointwise     lower  0.141421
-  debug  img_001 pred_dummy_img001      pred_001        s01 dummy_model dummy_sampler final_fixation_error pointwise     lower  0.000000
-  debug  img_001 pred_dummy_img001      pred_001        s01 dummy_model dummy_sampler  mean_duration_error  temporal     lower 33.333333
-  debug  img_001 pred_dummy_img001      pred_001        s01 dummy_model dummy_sampler duration_correlation  temporal    higher  0.654654
-  debug  img_001 pred_dummy_img001      pred_001        s01 dummy_model dummy_sampler                  dtw alignment     lower  0.070711
-```
-
-The output is a pandas DataFrame with one row per:
-
-```text
-prediction × human subject × metric
-```
-
----
-
 ## UEyes Dataset Support
 
 `gaze-eval` includes a dataset loader for UEyes and a reproducible human-human scanpath similarity benchmark.
@@ -342,9 +340,7 @@ duration
 
 The loader uses valid fixations and converts UEyes timing values to milliseconds.
 
-### 2. Sample Reproducible Human-Human Pairs
-
-Run:
+### 2. Sample Reproducible UEyes Human-Human Pairs
 
 ```bash
 python examples/sample_ueyes_pairs.py
@@ -364,24 +360,7 @@ The pair sample contains:
 10,000 different-category pairs
 ```
 
-Pairs are sampled with a fixed random seed and balanced across UEyes categories.
-
-The three pair types are:
-
-```text
-same_image:
-    same image, different subjects
-
-same_category:
-    different images from the same UI category
-
-different_category:
-    different images from different UI categories
-```
-
-### 3. Evaluate the Pair Sample
-
-Run:
+### 3. Evaluate UEyes Human Similarity
 
 ```bash
 python examples/evaluate_ueyes_pair_sample.py
@@ -397,6 +376,187 @@ data/processed/ueyes/results/ueyes_pair_metric_differences_seed42.csv
 data/processed/ueyes/results/ueyes_human_baseline_quality_seed42.csv
 ```
 
+### 4. Create UEyes Paper Tables and Figures
+
+```bash
+python examples/make_ueyes_paper_tables.py
+python examples/plot_ueyes_metric_distributions.py
+```
+
+These scripts create paper-ready CSV, LaTeX, and figure outputs under:
+
+```text
+data/processed/ueyes/paper_tables/
+data/processed/ueyes/figures/
+```
+
+---
+
+## MassVis Dataset Support
+
+`gaze-eval` also includes a dataset loader for MassVis and a reproducible human-human scanpath similarity benchmark.
+
+MassVis fixation files are expected under:
+
+```text
+data/masviss_data/
+├── massvis_cat_metadata.csv
+├── stimuli/
+└── fixationsByVis/
+    └── <image_id>/
+        ├── enc/
+        │   └── <subject_id>.csv
+        └── rec/
+            └── <subject_id>.csv
+```
+
+Each MassVis fixation CSV is read as:
+
+```text
+fixation_index, x, y, duration
+```
+
+The MassVis loader supports three phases:
+
+```python
+load_massvis(root, phase="enc")
+load_massvis(root, phase="rec")
+load_massvis(root, phase="both")
+```
+
+The recommended main benchmark uses the encoding phase:
+
+```text
+phase = "enc"
+```
+
+because it corresponds to the original viewing phase.
+
+The MassVis workflow is:
+
+```text
+raw MassVis dataset
+   ↓
+prepare_massvis.py
+   ↓
+human_scanpaths.ndjson
+   ↓
+sample_massvis_pairs.py
+   ↓
+fixed pair sample CSV
+   ↓
+evaluate_massvis_pair_sample.py
+   ↓
+metric results, summaries, sanity checks, effect sizes, and human baseline references
+```
+
+### 1. Prepare MassVis
+
+Place the dataset under:
+
+```text
+data/masviss_data/
+```
+
+Then run:
+
+```bash
+python examples/prepare_massvis.py
+```
+
+This creates normalized NDJSON scanpath files:
+
+```text
+data/processed/massvis/enc/human_scanpaths.ndjson
+data/processed/massvis/rec/human_scanpaths.ndjson
+data/processed/massvis/both/human_scanpaths.ndjson
+```
+
+MassVis fixation coordinates are normalized by the corresponding stimulus dimensions. Fixations outside the image bounds are excluded before normalization. Visualizations without a matching stimulus image are excluded from the normalized benchmark.
+
+Each MassVis row represents:
+
+```text
+one subject × one image × one phase = one scanpath record
+```
+
+The MassVis loader preserves metadata such as:
+
+```text
+image_id
+subject_id
+category
+vistype
+phase
+stimulus_source
+title
+duration
+```
+
+MassVis category labels are mapped to:
+
+```text
+N → news
+S → science
+G → government
+I → infographic
+```
+
+### 2. Sample Reproducible MassVis Human-Human Pairs
+
+Run:
+
+```bash
+python examples/sample_massvis_pairs.py
+```
+
+This creates:
+
+```text
+data/processed/massvis/enc/pairs/massvis_pairs_seed42.csv
+```
+
+The pair sample contains:
+
+```text
+10,000 same-image pairs
+10,000 same-category pairs
+10,000 different-category pairs
+```
+
+Pairs are sampled with a fixed random seed and balanced across MassVis categories.
+
+The three pair types are:
+
+```text
+same_image:
+    same image, different subjects
+
+same_category:
+    different images from the same visualization category
+
+different_category:
+    different images from different visualization categories
+```
+
+### 3. Evaluate MassVis Human Similarity
+
+Run:
+
+```bash
+python examples/evaluate_massvis_pair_sample.py
+```
+
+This creates:
+
+```text
+data/processed/massvis/enc/results/massvis_pair_metric_results_seed42.csv
+data/processed/massvis/enc/results/massvis_pair_metric_summary_seed42.csv
+data/processed/massvis/enc/results/massvis_pair_metric_sanity_seed42.csv
+data/processed/massvis/enc/results/massvis_pair_metric_differences_seed42.csv
+data/processed/massvis/enc/results/massvis_human_baseline_quality_seed42.csv
+```
+
 The benchmark checks whether scanpath metrics recover the expected human-human similarity structure:
 
 ```text
@@ -409,17 +569,62 @@ For lower-is-better metrics, this corresponds to:
 same image < same category < different category
 ```
 
+### 4. Create MassVis Paper Tables and Figures
+
+Run:
+
+```bash
+python examples/make_massvis_paper_tables.py
+python examples/plot_massvis_metric_distributions.py
+```
+
+These scripts create paper-ready CSV, LaTeX, and figure outputs under:
+
+```text
+data/processed/massvis/enc/paper_tables/
+data/processed/massvis/enc/figures/
+```
+
+---
+
+## Human-Human Similarity Benchmark
+
+The UEyes and MassVis benchmarks use the same structure.
+
+For each dataset, scanpath pairs are sampled into three groups:
+
+```text
+same_image
+same_category
+different_category
+```
+
+The expected similarity order is:
+
+```text
+same_image > same_category > different_category
+```
+
+For lower-is-better distance metrics, this becomes:
+
+```text
+same_image < same_category < different_category
+```
+
 The statistical output includes:
 
 ```text
-mean, median, standard deviation, IQR
+mean
+median
+standard deviation
+IQR
 bootstrap confidence intervals
 oriented Cliff's delta
 P(group A better than group B)
 human-baseline quality references
 ```
 
-The full UEyes benchmark evaluates the metrics available through the scanpath metric registry. Metrics with undefined values for some scanpath pairs are retained in the raw results, while summary statistics are computed after dropping NaN values per metric.
+The full benchmark evaluates all metrics available through the scanpath metric registry. Metrics with undefined values for some scanpath pairs are retained in the raw results, while summary statistics are computed after dropping NaN values per metric.
 
 Descriptive metrics are reported in the summary file but excluded from expected-order sanity checks and human-baseline quality scores because they do not have a lower-is-better or higher-is-better interpretation.
 
@@ -472,8 +677,6 @@ scanmatch
 levenshtein
 needleman_wunsch
 aoi_transition_similarity
-eyenalysis
-mannan_distance
 recurrence
 determinism
 laminarity
@@ -522,7 +725,12 @@ multimatch_direction
 multimatch_length
 multimatch_position
 multimatch_duration
+scanmatch
+needleman_wunsch
+sequence_score
 ```
+
+Descriptive metrics do not have a direct lower-is-better or higher-is-better interpretation.
 
 ---
 
@@ -676,6 +884,7 @@ Large local datasets and generated benchmark outputs should not be committed. Ke
 
 ```text
 data/Ueyes/
+data/masviss_data/
 data/processed/
 __MACOSX/
 .DS_Store
@@ -689,10 +898,9 @@ __MACOSX/
 
 Short-term:
 
-* add tests for UEyes loading, pair sampling, and statistical analysis
-* add paper-table generation utilities
-* add visualizations for UEyes metric distributions
-* add command-line entry points for dataset preparation and evaluation
+* add generic benchmark scripts to reduce duplication between UEyes and MassVis examples
+* add model-vs-human prediction evaluation examples
+* improve paper-table and figure generation utilities
 
 Medium-term:
 
